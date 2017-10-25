@@ -53,6 +53,18 @@ function getAjax() {
                     $('#solds').replaceWith(data.field);
                 });
             });
+
+            var ajax_url_field = "/index.php?ajax=on";
+            $.ajax({
+                type: "POST",
+                url: ajax_url_field,
+                data: {url: store_url, field: 'reviews'},
+            }).done(function(data) {
+                var reviews = $('#reviews'),
+                firstTotal = reviews.find('input').val();
+
+                reviews.replaceWith(Number(firstTotal) + Number(data.field));
+            });
         });
     }
 }

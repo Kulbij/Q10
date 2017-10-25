@@ -6,7 +6,8 @@ class View
 {
 	public $fields = [
 		'likes',
-		'solds'
+		'solds',
+		'reviews'
 	];
 
 	public function run($isAjax = false)
@@ -18,9 +19,10 @@ class View
 			$data = $ajaxParse->run($_POST);
 
 			if (isset($_POST['field']) && in_array($_POST['field'], $this->fields)) {
-				$dataField = ['field' => $data];
 				@header('Content-Type: application/json');
-				echo json_encode($dataField);
+				echo json_encode([
+					'field' => $data
+				]);
 				return;
 			}
 

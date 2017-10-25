@@ -23,7 +23,8 @@ class Functions
 	 */
 	public $fields = [
 		'likes',
-		'solds'
+		'solds',
+		'reviews'
 	];
 
 	public $paramMorePorducts = [
@@ -51,12 +52,19 @@ class Functions
 		'___cache_expire___' => '1508913018211',
 	];
 
+	/**
+	 * Start parser shop
+	 */
 	public function run()
 	{
 		if (!isset($_POST['url'])) {
 			return [];
 		}
 
+		/**
+		 * Request for ajax method load for fields
+		 * Started second queue
+		 */
 		if ($preloader = $this->fieldPreloader()) {
 			return $preloader;
 		}
@@ -76,9 +84,16 @@ class Functions
 		// 	return $data;
 		// }
 
+		/**
+		 * Request for ajax method
+		 * Started first queue
+		 */
 		return $this->curlShopProducts($this->parseUrl());
 	}
 
+	/**
+	 * Formed url address
+	 */
 	public function parseUrl()
 	{
 		$url = $_POST['url'] . '?search_mode=basic';
@@ -96,29 +111,37 @@ class Functions
 
 		$field = $_POST['field'];
 
-		if ($field == 'likes') {
-			$page = $this->runCurlPage($this->parseUrl());
-			if ($html = str_get_html($page)) {
-				$getDom = $this->formedProductFile($html, true);
-				return $this->getFileField('likes');
-			}
+		switch ($field) {
+			case 'likes': 
+				$page = $this->curlMethod($this->parseUrl());
+				if ($html = str_get_html($page)) {
+					$getDom = $this->formedProductFile($html, true);
+					return $this->getFileField($field);
+				}
+				break;
 
-			return false;
-		}
+			case 'solds': 
+				return $this->getFileField($field);
+				break;
 
-		if ($field == 'solds') {
-			return $this->getFileField('solds');
+			case 'reviews': 
+				return $this->getNextPage();
+				break;
+			
+			default:
+				return false;
+				break;
 		}
 
 		return false;
 	}
 
-	public function runCurlPage($url)
+	public function curlMethod($url)
 	{
 		$ch = curl_init($url);
-		curl_setopt($ch, CURLOPT_HEADER, true);  
+		curl_setopt($ch, CURLOPT_HEADER, false);  
 		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
-		curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+		curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 		curl_setopt($ch, CURLOPT_NOBODY, FALSE);
 		curl_setopt($ch, CURLOPT_USERAGENT, $this->agent);
 		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
@@ -134,32 +157,70 @@ class Functions
 
 	public function curlShopProducts($url)
 	{
-		if (empty($url)) {
-			return [];
-		}
-
-		$ch = curl_init($url);
-		curl_setopt($ch, CURLOPT_HEADER, false);  
-		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
-		curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-		curl_setopt($ch, CURLOPT_NOBODY, FALSE);
-		curl_setopt($ch, CURLOPT_USERAGENT, $this->agent);
-		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-
-		$page = curl_exec($ch);
-		curl_close($ch);
-		unset($ch);
+		$page = $this->curlMethod($url);
 
 		if ($data = $this->parsePage($page)) {
+
+			// if ($result = $this->getNextPage($data)) {
+
+			// }
+
 			return $data;
 		}
 
-		$agentKey = $this->getAgent();
-		$newAgent = $this->agents[$agentKey];
+		return [];
 
-		$this->run($url, $newAgent);
+		// $agentKey = $this->getAgent();
+		// $newAgent = $this->agents[$agentKey];
+
+		// $this->run($url, $newAgent);
+	}
+
+	public function getNextPage($data = [])
+	{
+		if ($data['more'][2] = $this->getMoreProducts()) {
+
+			$pageSize = 120;
+			$allItems = isset($data['count_products']['value']) ? preg_replace("/[^0-9]/", '', $data['count_products']['value']) : 0;
+			$curPage = 3;
+
+			for ($curPage; $curPage <= ceil($allItems / $pageSize); $curPage++) {
+				$data['more'][$curPage] = $this->getMoreProducts($curPage);
+			}
+		}
+
+		return array_sum($data['more']);
+	}
+
+	private function getMoreProducts($curPage = 2, $pageSize = 120)
+	{
+		$url = "http://www.qoo10.sg/gmkt.inc/Search/SearchResultAjaxTemplate.aspx?minishop_bar_onoff=N&sell_coupon_cust_no=+VHRIxvG8sTE3SvV2+lxhA==&SellerCooponDisplay=N&sell_cust_no=%2BVHRIxvG8sTE3SvV2%2BlxhA%3D%3D&theme_sid=0&global_yn=N&qid=0&search_mode=basic&fbidx=-1&sortType=SORT_RANK_POINT&dispType=UIG4&filterDelivery=NNNNNANNNNNNNN&search_global_yn=N&shipto=ALL&is_research_yn=Y&coupon_filter_no=0&partial=on&paging_value=1&curPage={$curPage}&pageSize={$pageSize}&ajax_search_type=M&___cache_expire___=1508913018211";
+
+		$reviews = [];
+		$page = $this->curlMethod($url);
+		if ($html = str_get_html($page)) {
+			foreach ($html->find('li') as $item) {
+				$reviews[] = $this->getItemReviews($item);
+			}
+
+			return array_sum($reviews);
+		}
+
+		return false;
+	}
+
+	public function getItemReviews($item)
+	{
+		if (isset($item->find('a.review strong', 0)->plaintext)) {
+			return $item->find('a.review strong', 0)->plaintext;
+		}
+
+		return null;
+	}
+
+	public function getItemPrice($item)
+	{
+		return $item->find('div.prc strong', 0)->plaintext;
 	}
 
 	public function getAgent()
@@ -285,6 +346,8 @@ class Functions
 					'value' => $this->getTotalProductReviews($html),
 					'class' => 't_lable',
 					'type' => 'text',
+					'preloader' => true,
+					'field' => 'reviews',
 				],
 				// 'shipping_from' => [
 				// 	'label' => 'Shipping From',
@@ -610,19 +673,7 @@ class Functions
 
     public function curlCountProduct($href)
 	{
-		$ch = curl_init($href);
-		curl_setopt($ch, CURLOPT_HEADER, true);  
-		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
-		curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-		curl_setopt($ch, CURLOPT_NOBODY, FALSE);
-		curl_setopt($ch, CURLOPT_USERAGENT, $this->agent);
-		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-
-		$page = curl_exec($ch);
-		curl_close($ch);
-		unset($ch);
+		$page = $this->curlMethod($href);
 
 		$html = str_get_html($page);
 
@@ -631,19 +682,7 @@ class Functions
 
     public function curlMainCategory($href)
 	{
-		$ch = curl_init($href);
-		curl_setopt($ch, CURLOPT_HEADER, true);  
-		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
-		curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-		curl_setopt($ch, CURLOPT_NOBODY, FALSE);
-		curl_setopt($ch, CURLOPT_USERAGENT, $this->agent);
-		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-
-		$page = curl_exec($ch);
-		curl_close($ch);
-		unset($ch);
+		$page = $this->curlMethod($href);
 
 		$html = str_get_html($page);
 
@@ -662,19 +701,7 @@ class Functions
 
 	public function curlProduct($href)
 	{
-		$ch = curl_init($href);
-		curl_setopt($ch, CURLOPT_HEADER, true);  
-		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
-		curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-		curl_setopt($ch, CURLOPT_NOBODY, FALSE);
-		curl_setopt($ch, CURLOPT_USERAGENT, $this->agent);
-		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-
-		$page = curl_exec($ch);
-		curl_close($ch);
-		unset($ch);
+		$page = $this->curlMethod($href);
 
 		$html = str_get_html($page);
 
@@ -701,16 +728,11 @@ class Functions
 			$arrayPaymentMethod = $paymentMethod;
 		}
 
-		// $estimatedDeliveryDate = $html->find('div#ItemInfoWrap2 table tbody tr', 2)->outertext;
-
-		// var_dump($estimatedDeliveryDate);
-
 		$data = [
 			'like' => $like,
 			'sold' => $sold,
 			'shipping_form' => $shoppingFrom,
 			'payment_method' => $arrayPaymentMethod
-			// 'estimatedDeliveryDate' => $estimatedDeliveryDate
 		];
 
 		return $data;
@@ -868,10 +890,8 @@ class Functions
 
 		foreach ($html->find('#div_gallery_new ul li') as $key => $product) {
 			
-			$priceText = '';
 			if (isset($product->find('a.review strong', 0)->plaintext)) {
-				$priceText = $product->find('a.review strong', 0)->plaintext;
-				$pricesArray[$key] = $priceText;
+				$pricesArray[$key] = $product->find('a.review strong', 0)->plaintext;
 			}
 		}
 

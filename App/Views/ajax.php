@@ -10,7 +10,7 @@
                         <td class="<?=$item['class'];?>"><?=$item['label'];?></td>
                         <td>
                             <?php if (isset($item['preloader']) && $item['preloader'] === true) : ?>
-                                <div<?php if (isset($item['field'])) : ?> id="<?=$item['field']; ?>" <?php endif; ?>class="loadermini"></div>
+                                <div<?php if (isset($item['field'])) : ?> id="<?=$item['field']; ?>" <?php endif; ?>class="loadermini"><input type="hidden" name="<?=$item['field']; ?>" value="<?=$item['value'];?>"></div>
                             <?php else : ?>
                                 <?=$item['value'];?>
                             <?php endif; ?>
