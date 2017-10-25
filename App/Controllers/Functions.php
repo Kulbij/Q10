@@ -14,9 +14,13 @@ class Functions
 	    'Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/27.0.1453.93 Safari/537.36'
 	];
 
+	public $agent = 'Mozilla/4.0 (Windows; U; Windows NT 5.0; En; rv:1.8.0.2) Gecko/20070306 Firefox/1.0.0.4';
 
 	// http://www.qoo10.sg/gmkt.inc/Search/SearchResultAjaxTemplate.aspx?minishop_bar_onoff=N&sell_coupon_cust_no=+VHRIxvG8sTE3SvV2+lxhA==&SellerCooponDisplay=N&sell_cust_no=%2BVHRIxvG8sTE3SvV2%2BlxhA%3D%3D&theme_sid=0&global_yn=N&qid=0&search_mode=basic&fbidx=-1&sortType=SORT_RANK_POINT&dispType=UIG4&filterDelivery=NNNNNANNNNNNNN&search_global_yn=N&shipto=ALL&is_research_yn=Y&coupon_filter_no=0&partial=on&paging_value=1&curPage=2&pageSize=120&ajax_search_type=M&___cache_expire___=1508913018211
 
+	/**
+	 * Fields for preloader
+	 */
 	public $fields = [
 		'likes',
 		'solds'
@@ -47,30 +51,14 @@ class Functions
 		'___cache_expire___' => '1508913018211',
 	];
 
-	public function run($post = [], $agent = 'Mozilla/4.0 (Windows; U; Windows NT 5.0; En; rv:1.8.0.2) Gecko/20070306 Firefox/1.0.0.4')
+	public function run()
 	{
-		if (!isset($post['url'])) {
+		if (!isset($_POST['url'])) {
 			return [];
 		}
 
-		if (isset($_POST['field'])) {
-			if (in_array($_POST['field'], $this->fields)) {
-				$field = $_POST['field'];
-
-				if ($field == 'likes') {
-					$href = $post['url'] . '?search_mode=basic';
-					$href = str_replace('??', '?', $href);
-					$page = $this->runCurlPage($href, $agent);
-					$html = str_get_html($page);
-					$getDom = $this->formedProductFile($html, true);
-
-					return $this->getLikeProducts();
-				}
-
-				if ($field == 'solds') {
-					return $this->getSoldProducts();
-				}
-			}
+		if ($preloader = $this->fieldPreloader()) {
+			return $preloader;
 		}
 
 		// $urlDeliberyDays = "http://list.qoo10.sg/gmkt.inc/swe_GoodsAjaxService.asmx/GetStandardDeliveryPeriodList";
@@ -88,36 +76,51 @@ class Functions
 		// 	return $data;
 		// }
 
-		// $page = $this->runCurlPage($post['url'], $agent);
-
-		// $html = str_get_html($page);
-		// if (!$html) {
-			$href = $post['url'] . '?search_mode=basic';
-			$href = str_replace('??', '?', $href);
-			$data = $this->curlShopProducts($href, $agent);
-
-			return $data;
-		// }
-
-		$agentKey = $this->getAgent();
-		$newAgent = $this->agents[$agentKey];
-
-		$this->run($post['url'], $newAgent);
+		return $this->curlShopProducts($this->parseUrl());
 	}
 
-	public function runCurlPage($url, $agent)
+	public function parseUrl()
+	{
+		$url = $_POST['url'] . '?search_mode=basic';
+		return str_replace('??', '?', $url);
+	}
+
+	/**
+	 * Get data fields where field == preloader
+	 */
+	public function fieldPreloader()
+	{
+		if (!isset($_POST['field']) || (isset($_POST['field']) && !in_array($_POST['field'], $this->fields))) {
+			return false;
+		}
+
+		$field = $_POST['field'];
+
+		if ($field == 'likes') {
+			$page = $this->runCurlPage($this->parseUrl());
+			if ($html = str_get_html($page)) {
+				$getDom = $this->formedProductFile($html, true);
+				return $this->getFileField('likes');
+			}
+
+			return false;
+		}
+
+		if ($field == 'solds') {
+			return $this->getFileField('solds');
+		}
+
+		return false;
+	}
+
+	public function runCurlPage($url)
 	{
 		$ch = curl_init($url);
-
-		// curl_setopt($ch, CURLOPT_URL, $post['url']);
-		// curl_setopt($ch, CURLOPT_PROXY, "79.136.33.142");
-		// curl_setopt($ch, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5);
-
 		curl_setopt($ch, CURLOPT_HEADER, true);  
 		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
 		curl_setopt($ch, CURLOPT_TIMEOUT, 60);
 		curl_setopt($ch, CURLOPT_NOBODY, FALSE);
-		curl_setopt($ch, CURLOPT_USERAGENT, $agent);
+		curl_setopt($ch, CURLOPT_USERAGENT, $this->agent);
 		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
@@ -129,9 +132,9 @@ class Functions
 		return $page;
 	}
 
-	public function curlShopProducts($url, $agent)
+	public function curlShopProducts($url)
 	{
-		if (!isset($url)) {
+		if (empty($url)) {
 			return [];
 		}
 
@@ -140,7 +143,7 @@ class Functions
 		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
 		curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 		curl_setopt($ch, CURLOPT_NOBODY, FALSE);
-		curl_setopt($ch, CURLOPT_USERAGENT, $agent);
+		curl_setopt($ch, CURLOPT_USERAGENT, $this->agent);
 		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
@@ -173,10 +176,6 @@ class Functions
 		 * product informatons
 		 */
 		$getDom = $this->formedProductFile($html);
-
-		// if (!$getDom) {
- 	// 		return [];
-		// }
 
 		$data = [];
 		if (!empty($html) && !is_null($html)) {
@@ -468,8 +467,7 @@ class Functions
 		if (sizeof($arayCategories) > 1) {
 			$href = $html->find('a#btn_allitem', 0)->href;
 
-			$agent = 'Opera/9.64 (Windows NT 5.1; U; ru) Presto/2.1.1';
-			$linkCategories = $this->curlMainCategory($href, $agent);
+			$linkCategories = $this->curlMainCategory($href, $this->agent);
 
 			// if (sizeof($linkCategories) > 0) {
 			// 	foreach ($linkCategories as $key => $category) {
@@ -481,22 +479,7 @@ class Functions
 			// 	}
 			// }
 
-			// $name = [];
-			// $nameNew = '';
-			// $names = [];
-			// foreach ($count as $key => $item) {
-			// 	if (isset($item['name'])) {
-			// 		$name = explode('(', $item['name']);
-
-			// 		$nameNew = isset($name[0]) ? $name[0] : '';
-			// 	}
-			// 	$names[$key]['name'] = $nameNew;
-			// 	$names[$key]['qty'] = $item['count'];
-			// }
-
 			$data = [];
-			$name = '';
-			$nameNew = '';
 			foreach ($linkCategories as $key => $category) {
 				if (isset($category['name'])) {
 					$data[$key]['count'] = preg_replace("/[^0-9]/", '', $category['name']);
@@ -540,16 +523,15 @@ class Functions
 			return false;
 		}
 
-		$agent = 'Opera/9.64 (Windows NT 5.1; U; ru) Presto/2.1.1';
 		$product = [];
 
 		if (!$all) {
-			$products[] = $this->curlProduct($hrefs[0], $agent);
+			$products[] = $this->curlProduct($hrefs[0], $this->agent);
 		}
 
 		if ($all) {
 			foreach ($hrefs as $href) {
-				$products[] = $this->curlProduct($href, $agent);
+				$products[] = $this->curlProduct($href, $this->agent);
 			}
 		}
 
@@ -626,14 +608,14 @@ class Functions
 
     }
 
-    public function curlCountProduct($href, $agent)
+    public function curlCountProduct($href)
 	{
 		$ch = curl_init($href);
 		curl_setopt($ch, CURLOPT_HEADER, true);  
 		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
 		curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 		curl_setopt($ch, CURLOPT_NOBODY, FALSE);
-		curl_setopt($ch, CURLOPT_USERAGENT, $agent);
+		curl_setopt($ch, CURLOPT_USERAGENT, $this->agent);
 		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
@@ -647,14 +629,14 @@ class Functions
 		return $this->getItems($html);
 	}
 
-    public function curlMainCategory($href, $agent)
+    public function curlMainCategory($href)
 	{
 		$ch = curl_init($href);
 		curl_setopt($ch, CURLOPT_HEADER, true);  
 		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
 		curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 		curl_setopt($ch, CURLOPT_NOBODY, FALSE);
-		curl_setopt($ch, CURLOPT_USERAGENT, $agent);
+		curl_setopt($ch, CURLOPT_USERAGENT, $this->agent);
 		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
@@ -678,14 +660,14 @@ class Functions
 		return $link;
 	}
 
-	public function curlProduct($href, $agent)
+	public function curlProduct($href)
 	{
 		$ch = curl_init($href);
 		curl_setopt($ch, CURLOPT_HEADER, true);  
 		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
 		curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 		curl_setopt($ch, CURLOPT_NOBODY, FALSE);
-		curl_setopt($ch, CURLOPT_USERAGENT, $agent);
+		curl_setopt($ch, CURLOPT_USERAGENT, $this->agent);
 		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
@@ -753,15 +735,6 @@ class Functions
 		return $hrefs;
 	}
 
-	public function getShoppingFrom()
-	{
-		$path = __DIR__ . '/data.csv';
-
-		$data = json_decode(file_get_contents($path));
-
-		return $data->shipping_form;
-	}
-
 	public function getPaymentMethod()
 	{
 		$path = __DIR__ . '/data.csv';
@@ -775,6 +748,15 @@ class Functions
 		}
 
 		return '';
+	}
+
+	public function getFileField($field = null)
+	{
+		$path = __DIR__ . '/data.csv';
+
+		$data = json_decode(file_get_contents($path));
+
+		return $data->$field;
 	}
 
 	public function getSoldProducts()

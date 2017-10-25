@@ -15,7 +15,7 @@ function getAjax() {
 
     if (store_url != "") {
 
-        if(!isUrlValid(store_url)) {
+        if (!isUrlValid(store_url)) {
             var clearInput = "<p>Not valid Store URL address</p>";
             $('#ajax_put_block').html(clearInput);
             $('form input[name="store_url"]').focus();
