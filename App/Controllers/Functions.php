@@ -14,11 +14,37 @@ class Functions
 	    'Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/27.0.1453.93 Safari/537.36'
 	];
 
-	// public $ajaxPostParams = 'Search/SearchResultAjaxTemplate.aspx?minishop_bar_onoff=N&sell_coupon_cust_no=+VHRIxvG8sTE3SvV2+lxhA==&SellerCooponDisplay=N&sell_cust_no=%2BVHRIxvG8sTE3SvV2%2BlxhA%3D%3D&theme_sid=0&global_yn=N&qid=0&search_mode=basic&fbidx=-1&sortType=SORT_RANK_POINT&dispType=UIG4&filterDelivery=NNNNNANNNNNNNN&search_global_yn=N&shipto=ALL&is_research_yn=Y&coupon_filter_no=0&partial=on&paging_value=2&curPage=1&pageSize=160';
+
+	// http://www.qoo10.sg/gmkt.inc/Search/SearchResultAjaxTemplate.aspx?minishop_bar_onoff=N&sell_coupon_cust_no=+VHRIxvG8sTE3SvV2+lxhA==&SellerCooponDisplay=N&sell_cust_no=%2BVHRIxvG8sTE3SvV2%2BlxhA%3D%3D&theme_sid=0&global_yn=N&qid=0&search_mode=basic&fbidx=-1&sortType=SORT_RANK_POINT&dispType=UIG4&filterDelivery=NNNNNANNNNNNNN&search_global_yn=N&shipto=ALL&is_research_yn=Y&coupon_filter_no=0&partial=on&paging_value=1&curPage=2&pageSize=120&ajax_search_type=M&___cache_expire___=1508913018211
 
 	public $fields = [
 		'likes',
 		'solds'
+	];
+
+	public $paramMorePorducts = [
+		'minishop_bar_onoff' => 'N',
+		'sell_coupon_cust_no' => 'VHRIxvG8sTE3SvV2 lxhA==',
+		'SellerCooponDisplay' => 'N',
+		'sell_cust_no' => '+VHRIxvG8sTE3SvV2+lxhA==',
+		'theme_sid' => '0',
+		'global_yn' => 'N',
+		'qid' => '0',
+		'search_mode' => 'basic',
+		'fbidx' => '-1',
+		'sortType' => 'SORT_RANK_POINT',
+		'dispType' => 'UIG4',
+		'filterDelivery' => 'NNNNNANNNNNNNN',
+		'search_global_yn' => 'N',
+		'shipto' => 'ALL',
+		'is_research_yn' => 'Y',
+		'coupon_filter_no' => '0',
+		'partial' => 'on',
+		'paging_value' => '1',
+		'curPage' => '2',
+		'pageSize' => '120',
+		'ajax_search_type' => 'M',
+		'___cache_expire___' => '1508913018211',
 	];
 
 	public function run($post = [], $agent = 'Mozilla/4.0 (Windows; U; Windows NT 5.0; En; rv:1.8.0.2) Gecko/20070306 Firefox/1.0.0.4')
@@ -445,29 +471,42 @@ class Functions
 			$agent = 'Opera/9.64 (Windows NT 5.1; U; ru) Presto/2.1.1';
 			$linkCategories = $this->curlMainCategory($href, $agent);
 
-			if (sizeof($linkCategories) > 0) {
-				foreach ($linkCategories as $key => $category) {
-					$count[$key]['count'] = $this->curlCountProduct($category['href'], $agent);
-					$count[$key]['name'] = $category['name'];
-				}
-			}
+			// if (sizeof($linkCategories) > 0) {
+			// 	foreach ($linkCategories as $key => $category) {
+			// 		// $count[$key]['count'] = $this->curlCountProduct($category['href'], $agent);
 
-			$name = [];
+			// 		$count[$key]['count'] = preg_replace("/[^0-9]/", '', $category['name']);
+
+			// 		$count[$key]['name'] = $category['name'];
+			// 	}
+			// }
+
+			// $name = [];
+			// $nameNew = '';
+			// $names = [];
+			// foreach ($count as $key => $item) {
+			// 	if (isset($item['name'])) {
+			// 		$name = explode('(', $item['name']);
+
+			// 		$nameNew = isset($name[0]) ? $name[0] : '';
+			// 	}
+			// 	$names[$key]['name'] = $nameNew;
+			// 	$names[$key]['qty'] = $item['count'];
+			// }
+
+			$data = [];
+			$name = '';
 			$nameNew = '';
-			$names = [];
-			foreach ($count as $key => $item) {
-				if (isset($item['name'])) {
-					$name = explode('(', $item['name']);
-
-					$nameNew = isset($name[0]) ? $name[0] : '';
+			foreach ($linkCategories as $key => $category) {
+				if (isset($category['name'])) {
+					$data[$key]['count'] = preg_replace("/[^0-9]/", '', $category['name']);
+					$data[$key]['name'] = preg_replace("/[^A-z]/", ' ', $category['name']);
 				}
-				$names[$key]['name'] = $nameNew;
-				$names[$key]['qty'] = $item['count'];
 			}
 
-			$max = max($names);
+			$max = max($data);
 
-			if (sizeof($names) > 0) {
+			if (sizeof($data) > 0) {
 				return $max['name'];
 			}
 
