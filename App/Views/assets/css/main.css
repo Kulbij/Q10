@@ -1,0 +1,19 @@
+.form-control {
+margin-left: 0px;
+}
+.page-header, .page-header small {
+color: white !important;
+}
+label {
+color: black;
+}
+div#div_result {
+height: 129px;
+overflow-x: hidden;
+}
+body{
+font-size: 15px;
+}
+.t_lable {
+width: 25%;
+}
