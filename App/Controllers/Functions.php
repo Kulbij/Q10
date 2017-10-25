@@ -14,6 +14,8 @@ class Functions
 	    'Mozilla/5.0 (Windows NT 6.2; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/27.0.1453.93 Safari/537.36'
 	];
 
+	public $originUrl = 'http://www.qoo10.sg';
+
 	public $agent = 'Mozilla/4.0 (Windows; U; Windows NT 5.0; En; rv:1.8.0.2) Gecko/20070306 Firefox/1.0.0.4';
 
 	// http://www.qoo10.sg/gmkt.inc/Search/SearchResultAjaxTemplate.aspx?minishop_bar_onoff=N&sell_coupon_cust_no=+VHRIxvG8sTE3SvV2+lxhA==&SellerCooponDisplay=N&sell_cust_no=%2BVHRIxvG8sTE3SvV2%2BlxhA%3D%3D&theme_sid=0&global_yn=N&qid=0&search_mode=basic&fbidx=-1&sortType=SORT_RANK_POINT&dispType=UIG4&filterDelivery=NNNNNANNNNNNNN&search_global_yn=N&shipto=ALL&is_research_yn=Y&coupon_filter_no=0&partial=on&paging_value=1&curPage=2&pageSize=120&ajax_search_type=M&___cache_expire___=1508913018211
@@ -65,7 +67,7 @@ class Functions
 		 * Request for ajax method load for fields
 		 * Started second queue
 		 */
-		if ($preloader = $this->fieldPreloader()) {
+		if ($preloader = $this->fieldPreloader($_POST['url'])) {
 			return $preloader;
 		}
 
@@ -103,7 +105,7 @@ class Functions
 	/**
 	 * Get data fields where field == preloader
 	 */
-	public function fieldPreloader()
+	public function fieldPreloader($url)
 	{
 		if (!isset($_POST['field']) || (isset($_POST['field']) && !in_array($_POST['field'], $this->fields))) {
 			return false;
@@ -125,7 +127,7 @@ class Functions
 				break;
 
 			case 'reviews': 
-				return $this->getNextPage();
+				return $this->getNextPage($url);
 				break;
 			
 			default:
@@ -155,6 +157,76 @@ class Functions
 		return $page;
 	}
 
+	private function getSubCategories($category)
+	{
+		$data = [];
+
+		foreach ($category->find('div.dropdown dl') as $key => $subCategory) {
+			if ($subCategory->find('dt a', 0)->plaintext) {
+				$data[$key]['name'] = $subCategory->find('dt a', 0)->plaintext;
+				$data[$key]['sub'] = $this->getSubMainCategories($subCategory);
+			}
+		}
+
+		return $data;
+	}
+
+	private function getSubMainCategories($category)
+	{
+		$data = [];
+
+		foreach ($category->find('dd') as $subCategory) {
+			if ($subCategory->find('a', 0)->plaintext) {
+				$data[] = $subCategory->find('a', 0)->plaintext;
+			}
+		}
+
+		return $data;
+	}
+
+	/**
+	 *	Function for get categories main page
+	 */
+	public function getMainCategories()
+	{
+		$page = $this->curlMethod($this->originUrl);
+		$html = str_get_html($page);
+
+		$data = [];
+		foreach ($html->find('.gnb_menu ul li') as $key => $category) {
+			if ($category->find('a', 0)->plaintext) {
+				$data[$key]['name'] = $category->find('a', 0)->plaintext;
+				$data[$key]['sub'] = $this->getSubCategories($category);
+				
+			}
+		}
+
+		return $data;
+	}
+
+	public function searchCategory($needle, $array, $list = [])
+	{
+		foreach ($array as $key => $item) {
+
+			if ($item['name'] == $needle) {
+				return $item['name'];
+			}
+
+			foreach ($item['sub'] as $subKey => $one) {
+
+				if ($one['name'] == $needle) {
+					return $one['name'];
+				}
+
+				if (array_search($needle, $one['sub'])) {
+					return isset($array[$key]['name']) ? $array[$key]['name'] : null;
+				}
+			}
+		}
+
+		return $needle;
+	}
+
 	public function curlShopProducts($url)
 	{
 		$page = $this->curlMethod($url);
@@ -176,25 +248,37 @@ class Functions
 		// $this->run($url, $newAgent);
 	}
 
-	public function getNextPage($data = [])
+	public function getNextPage($url, $data = [])
 	{
-		if ($data['more'][2] = $this->getMoreProducts()) {
+		$page = $this->curlMethod($url);
+		$html = str_get_html($page);
+		$sellCustNo = $html->find('input#sell_cust_no', 0)->value;
+		$themeSid = $html->find('input#theme_sid', 0)->value;
+		$minishopBarUnoff = $html->find('input#minishop_bar_onoff', 0)->value;
+		$sellCouponCustNo = $html->find('input#sell_coupon_cust_no', 0)->value;
+		$SellerCooponDisplay = $html->find('input#SellerCooponDisplay', 0)->value;
+		$globalYn = $html->find('input#global_yn', 0)->value;
+		$qId = $html->find('input#store_feature_bar_qid', 0)->value;
+		$fbidx = $html->find('input#hid_fbidx', 0)->value;
+
+
+		if ($data['more'][2] = $this->getMoreProducts($sellCustNo, $themeSid, $minishopBarUnoff, $sellCouponCustNo, $SellerCooponDisplay, $globalYn, $qId, $fbidx)) {
 
 			$pageSize = 120;
 			$allItems = isset($data['count_products']['value']) ? preg_replace("/[^0-9]/", '', $data['count_products']['value']) : 0;
 			$curPage = 3;
 
 			for ($curPage; $curPage <= ceil($allItems / $pageSize); $curPage++) {
-				$data['more'][$curPage] = $this->getMoreProducts($curPage);
+				$data['more'][$curPage] = $this->getMoreProducts($sellCustNo, $themeSid, $minishopBarUnoff, $sellCouponCustNo, $SellerCooponDisplay, $globalYn, $qId, $fbidx, $curPage);
 			}
 		}
 
 		return array_sum($data['more']);
 	}
 
-	private function getMoreProducts($curPage = 2, $pageSize = 120)
+	private function getMoreProducts($sellCustNo, $themeSid, $minishopBarUnoff, $sellCouponCustNo, $SellerCooponDisplay, $globalYn, $qId, $fbidx, $curPage = 2, $pageSize = 120)
 	{
-		$url = "http://www.qoo10.sg/gmkt.inc/Search/SearchResultAjaxTemplate.aspx?minishop_bar_onoff=N&sell_coupon_cust_no=+VHRIxvG8sTE3SvV2+lxhA==&SellerCooponDisplay=N&sell_cust_no=%2BVHRIxvG8sTE3SvV2%2BlxhA%3D%3D&theme_sid=0&global_yn=N&qid=0&search_mode=basic&fbidx=-1&sortType=SORT_RANK_POINT&dispType=UIG4&filterDelivery=NNNNNANNNNNNNN&search_global_yn=N&shipto=ALL&is_research_yn=Y&coupon_filter_no=0&partial=on&paging_value=1&curPage={$curPage}&pageSize={$pageSize}&ajax_search_type=M&___cache_expire___=1508913018211";
+		$url = "http://www.qoo10.sg/gmkt.inc/Search/SearchResultAjaxTemplate.aspx?minishop_bar_onoff={$minishopBarUnoff}&sell_coupon_cust_no={$sellCouponCustNo}&SellerCooponDisplay={$SellerCooponDisplay}&sell_cust_no={$sellCustNo}&theme_sid={$themeSid}&global_yn={$globalYn}&qid={$qId}&search_mode=basic&fbidx={$fbidx}&sortType=SORT_RANK_POINT&dispType=UIG4&filterDelivery=NNNNNANNNNNNNN&search_global_yn=N&shipto=ALL&is_research_yn=Y&coupon_filter_no=0&partial=on&paging_value=1&curPage={$curPage}&pageSize={$pageSize}";
 
 		$reviews = [];
 		$page = $this->curlMethod($url);
@@ -532,16 +616,6 @@ class Functions
 
 			$linkCategories = $this->curlMainCategory($href, $this->agent);
 
-			// if (sizeof($linkCategories) > 0) {
-			// 	foreach ($linkCategories as $key => $category) {
-			// 		// $count[$key]['count'] = $this->curlCountProduct($category['href'], $agent);
-
-			// 		$count[$key]['count'] = preg_replace("/[^0-9]/", '', $category['name']);
-
-			// 		$count[$key]['name'] = $category['name'];
-			// 	}
-			// }
-
 			$data = [];
 			foreach ($linkCategories as $key => $category) {
 				if (isset($category['name'])) {
@@ -550,10 +624,27 @@ class Functions
 				}
 			}
 
-			$max = max($data);
+			$maxSiteCategory = max($data);
 
 			if (sizeof($data) > 0) {
-				return $max['name'];
+				/**
+				 * Home categories
+				 */
+				$mainCategories = $this->getMainCategories();
+
+				/**
+				 * List products categories
+				 */
+				// $listCategoriesString = trim($this->getSellerCategories($html));
+				// $listCategoriesArray = explode(',', $listCategoriesString);
+
+				$nameCategory = trim($maxSiteCategory['name']);
+
+				if ($getCategoryName = $this->searchCategory($nameCategory, $mainCategories)) {
+					return $getCategoryName;
+				}
+				
+				return $nameCategory;
 			}
 
 			return null;
@@ -564,7 +655,7 @@ class Functions
 	{
 		$categories= '';
 
-		foreach ($html->find('#div_minishop_category_result ul li') as $category) {
+		foreach ($html->find('ul.major li') as $category) {
 			
 			if (isset($category->find('span', 0)->plaintext)) {
 				$categories .= $category->find('span', 0)->plaintext . ', ';
