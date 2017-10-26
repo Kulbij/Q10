@@ -161,35 +161,39 @@ class Functions
 	{
 		$data = [];
 
-		foreach ($category->find('div.dropdown dl') as $key => $subCategory) {
-			if ($subCategory->find('dt a', 0)->plaintext) {
-				$data[$key]['name'] = $subCategory->find('dt a', 0)->plaintext;
-				$data[$key]['sub'] = $this->getSubMainCategories($subCategory);
-			}
-		}
-
-		return $data;
-	}
-
-	private function getSubMainCategories($category)
-	{
-		$data = [];
-
-		foreach ($category->find('dd') as $subCategory) {
+		foreach ($category->find('div.dropdown dt') as $key => $subCategory) {
 			if ($subCategory->find('a', 0)->plaintext) {
-				$data[] = $subCategory->find('a', 0)->plaintext;
+				$data[] = trim($subCategory->find('a', 0)->plaintext);
+				// $data[$key]['sub'] = $this->getSubMainCategories($subCategory->parent());
 			}
 		}
 
 		return $data;
 	}
+
+	// private function getSubMainCategories($category)
+	// {
+	// 	$data = [];
+
+	// 	foreach ($category->find('dd') as $subCategory) {
+	// 		if ($subCategory->find('a', 0)->plaintext) {
+	// 			$data[] = $subCategory->find('a', 0)->plaintext;
+	// 		}
+	// 	}
+
+	// 	return $data;
+	// }
 
 	/**
 	 *	Function for get categories main page
 	 */
 	public function getMainCategories()
 	{
+		/**
+		 * Get main url address shop
+		 */
 		$page = $this->curlMethod($this->originUrl);
+
 		$html = str_get_html($page);
 
 		$data = [];
@@ -207,20 +211,8 @@ class Functions
 	public function searchCategory($needle, $array, $list = [])
 	{
 		foreach ($array as $key => $item) {
-
-			if ($item['name'] == $needle) {
-				return $item['name'];
-			}
-
-			foreach ($item['sub'] as $subKey => $one) {
-
-				if ($one['name'] == $needle) {
-					return $one['name'];
-				}
-
-				if (array_search($needle, $one['sub'])) {
-					return isset($array[$key]['name']) ? $array[$key]['name'] : null;
-				}
+			if (isset($item['sub']) && in_array($needle, $item['sub'])) {
+				return $item['name'] ? $item['name'] : $needle;
 			}
 		}
 
@@ -241,11 +233,6 @@ class Functions
 		}
 
 		return [];
-
-		// $agentKey = $this->getAgent();
-		// $newAgent = $this->agents[$agentKey];
-
-		// $this->run($url, $newAgent);
 	}
 
 	public function getNextPage($url, $data = [])
@@ -260,7 +247,6 @@ class Functions
 		$globalYn = $html->find('input#global_yn', 0)->value;
 		$qId = $html->find('input#store_feature_bar_qid', 0)->value;
 		$fbidx = $html->find('input#hid_fbidx', 0)->value;
-
 
 		if ($data['more'][2] = $this->getMoreProducts($sellCustNo, $themeSid, $minishopBarUnoff, $sellCouponCustNo, $SellerCooponDisplay, $globalYn, $qId, $fbidx)) {
 
@@ -323,7 +309,7 @@ class Functions
 		$getDom = $this->formedProductFile($html);
 
 		$data = [];
-		if (!empty($html) && !is_null($html)) {
+		if ($html) {
 
 			$data = [
 				'seller_ame' => [
@@ -566,13 +552,11 @@ class Functions
 
 	public function getFellows($html)
 	{
-		$fellows = trim(trim($html->find('span.flw_num', 0)->plaintext), 'Fellows');
-
-		if (!$fellows) {
-			return null;
+		if (isset($html->find('span.flw_num', 0)->plaintext)) {
+			$fellows = trim(trim($html->find('span.flw_num', 0)->plaintext), 'Fellows');
 		}
 
-		return $fellows;
+		return null;
 	}
 
 	public function getTopSellerStar($html)

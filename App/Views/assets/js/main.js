@@ -42,6 +42,9 @@ function getAjax() {
                 url: ajax_url_field,
                 data: {url: store_url, field: 'likes'},
             }).done(function(data) {
+                if (typeof data.field == 'object') {
+                    $('#likes').parent().parent().hide();
+                }
                 $('#likes').replaceWith(data.field);
 
                 var ajax_url_field = "/index.php?ajax=on";
@@ -50,6 +53,9 @@ function getAjax() {
                     url: ajax_url_field,
                     data: {url: store_url, field: 'solds'},
                 }).done(function(data) {
+                    if (typeof data.field == 'object') {
+                        $('#solds').parent().parent().hide();
+                    }
                     $('#solds').replaceWith(data.field);
                 });
             });
@@ -64,6 +70,10 @@ function getAjax() {
                 firstTotal = reviews.find('input').val();
 
                 reviews.replaceWith(Number(firstTotal) + Number(data.field));
+
+                if (typeof data.field == 'object') {
+                    $('#reviews').parent().parent().hide();
+                }
             });
         });
     }
